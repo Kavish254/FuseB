@@ -9,7 +9,13 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 
-contract FuriousApeSociety is ERC721, ERC721Enumerable, ERC721Burnable, Ownable, Pausable {
+contract FuriousApeSociety is
+    ERC721,
+    ERC721Enumerable,
+    ERC721Burnable,
+    Ownable,
+    Pausable
+{
     using Counters for Counters.Counter;
     string public _extendedBaseUri;
     mapping(address => uint256) public addressMintedBalance;
@@ -17,51 +23,65 @@ contract FuriousApeSociety is ERC721, ERC721Enumerable, ERC721Burnable, Ownable,
     Counters.Counter private _tokenIdCounter;
 
     uint256 public maxSupply = 10000;
-    uint256 public maxMintAmount = 20; 
+    uint256 public maxMintAmount = 20;
     uint256 public cost = 0.001 ether;
+    bool public onlyWhitelisted = true;
+    address[] public whitelistedAddresses;
 
     constructor() ERC721("nft", "knft") {
-            _extendedBaseUri = "ipfs://QmNrepKFYKQsXZiFMq71nzHkG9Wb2tQQNLQsjhDZnnXRJW/";
+        _extendedBaseUri = "ipfs://QmNrepKFYKQsXZiFMq71nzHkG9Wb2tQQNLQsjhDZnnXRJW/";
     }
-   
-      
-    function _baseURI() internal view override returns (string memory){
+
+    function _baseURI() internal view override returns (string memory) {
         // "ipfs://QmNrepKFYKQsXZiFMq71nzHkG9Wb2tQQNLQsjhDZnnXRJW/"
         return _extendedBaseUri;
     }
-    
+
     function setBaseUrl(string memory newBaseUrl) public onlyOwner {
-         _extendedBaseUri = newBaseUrl;
-    }
-    
-    
-    function tokenURI(uint256 _tokenId) override public view returns (string memory) {
-    return string(abi.encodePacked(
-        _baseURI(),
-        Strings.toString(_tokenId),
-        ".json"
-        ));
-    
+        _extendedBaseUri = newBaseUrl;
     }
 
-        function mint(uint256 _mintAmount) public whenNotPaused payable {
-        uint256 supply = totalSupply();
-        require(_mintAmount > 0, "need to mint at least 1 NFT");
-        require(_mintAmount <= maxMintAmount, "max mint amount per session exceeded");
-        require(supply + _mintAmount <= maxSupply, "max NFT limit exceeded");
+    function tokenURI(uint256 _tokenId)
+        public
+        view
+        override
+        returns (string memory)
+    {
+        return
+            string(
+                abi.encodePacked(
+                    _baseURI(),
+                    Strings.toString(_tokenId),
+                    ".json"
+                )
+            );
+    }
 
-        if (msg.sender != owner()) {
+    function mint(uint256 _mintAmount) public payable whenNotPaused {
+        if (onlyWhitelisted == true) {
+            require(isWhitelisted(msg.sender), "user is not whitelisted");
+        } 
+
+        if(!isWhitelisted(msg.sender) && msg.sender != owner()){
             require(msg.value >= cost * _mintAmount, "insufficient funds");
         }
-        
+
+        uint256 supply = totalSupply();
+        require(_mintAmount > 0, "need to mint at least 1 NFT");
+        require(
+            _mintAmount <= maxMintAmount,
+            "max mint amount per session exceeded"
+        );
+        require(supply + _mintAmount <= maxSupply, "max NFT limit exceeded");
+
         for (uint256 i = 1; i <= _mintAmount; i++) {
             addressMintedBalance[msg.sender]++;
-            _safeMint(msg.sender, supply + i);
+            safeMint(msg.sender);
         }
     }
 
-    function safeMint(address to) public payable {
-
+    function safeMint(address to) internal  {
+        
         require(maxSupply >= totalSupply(), "No supply");
 
         require(msg.value >= cost, "Not enough ether sent");
@@ -73,10 +93,11 @@ contract FuriousApeSociety is ERC721, ERC721Enumerable, ERC721Burnable, Ownable,
         _safeMint(to, tokenId);
     }
 
-    function _beforeTokenTransfer(address from, address to, uint256 tokenId)
-        internal
-        override(ERC721, ERC721Enumerable)
-    {
+    function _beforeTokenTransfer(
+        address from,
+        address to,
+        uint256 tokenId
+    ) internal override(ERC721, ERC721Enumerable) {
         super._beforeTokenTransfer(from, to, tokenId);
     }
 
@@ -89,7 +110,7 @@ contract FuriousApeSociety is ERC721, ERC721Enumerable, ERC721Burnable, Ownable,
         return super.supportsInterface(interfaceId);
     }
 
-    function withdraw() public onlyOwner{
+    function withdraw() public onlyOwner {
         require(address(this).balance > 0, "Balance is 0");
         payable(owner()).transfer(address(this).balance);
     }
@@ -97,9 +118,26 @@ contract FuriousApeSociety is ERC721, ERC721Enumerable, ERC721Burnable, Ownable,
     function _burn(uint256 tokenId) internal override(ERC721) {
         super._burn(tokenId);
     }
-   
+
+    function setOnlyWhitelisted(bool _state) public onlyOwner {
+        onlyWhitelisted = _state;
+    }
+
+    function isWhitelisted(address _user) public view returns (bool) {
+        for (uint256 i = 0; i < whitelistedAddresses.length; i++) {
+            if (whitelistedAddresses[i] == _user) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function whitelistUsers(address[] calldata _users) public onlyOwner {
+        delete whitelistedAddresses;
+        whitelistedAddresses = _users;
+    }
+
     function setCost(uint256 _newCost) public onlyOwner {
         cost = _newCost;
     }
-       
 }
