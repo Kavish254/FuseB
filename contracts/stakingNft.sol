@@ -98,10 +98,7 @@ contract StakingNft is Ownable {
     }
 
     function unstake(uint256 _tokenId) public {
-        require(
-            tokenOwner[_tokenId] == msg.sender,
-            "DigitalaxGenesisStaking._unstake: Sender must have staked tokenID"
-        );
+       
         claimReward(msg.sender);
         _unstake(msg.sender, _tokenId);
     }
@@ -115,8 +112,21 @@ contract StakingNft is Ownable {
         }
     }
 
+        // Unstake without caring about rewards. EMERGENCY ONLY.
+    function emergencyUnstake(uint256 _tokenId) public {
+        require(
+            tokenOwner[_tokenId] == msg.sender,
+            "nft._unstake: Sender must have staked tokenID"
+        );
+        _unstake(msg.sender, _tokenId);
+        emit EmergencyUnstake(msg.sender, _tokenId);
+    }
+
     function _unstake(address _user, uint256 _tokenId) internal {
-        require(nft.ownerOf(_tokenId) == _user , "user must be the owner of the token");
+        require(
+            tokenOwner[_tokenId] == _user,
+            "Nft Staking System: user must be the owner of the staked nft"
+        );
         Staker storage staker = stakers[_user];
 
         uint256 lastIndex = staker.tokenIds.length - 1;
@@ -136,16 +146,6 @@ contract StakingNft is Ownable {
         nft.safeTransferFrom(address(this), _user, _tokenId);
 
         emit Unstaked(_user, _tokenId);
-    }
-
-    // Unstake without caring about rewards. EMERGENCY ONLY.
-    function emergencyUnstake(uint256 _tokenId) public {
-        require(
-            tokenOwner[_tokenId] == msg.sender,
-            "nft._unstake: Sender must have staked tokenID"
-        );
-        _unstake(msg.sender, _tokenId);
-        emit EmergencyUnstake(msg.sender, _tokenId);
     }
 
     function updateReward(address _user) public {
