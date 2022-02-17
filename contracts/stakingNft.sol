@@ -5,9 +5,9 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 
-
-contract StakingNft is Ownable {
+contract StakingNft is Ownable, ERC721Holder {
     IERC20 public rewardsToken;
     IERC721 public nft;
 
