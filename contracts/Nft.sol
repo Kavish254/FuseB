@@ -9,13 +9,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 
-contract FuriousApeSociety is
-    ERC721,
-    ERC721Enumerable,
-    ERC721Burnable,
-    Ownable,
-    Pausable
-{
+contract Nft is ERC721, ERC721Enumerable, ERC721Burnable, Ownable, Pausable {
     using Counters for Counters.Counter;
     string public _extendedBaseUri;
     mapping(address => uint256) public addressMintedBalance;
@@ -27,13 +21,14 @@ contract FuriousApeSociety is
     uint256 public cost = 0.001 ether;
     bool public onlyWhitelisted = true;
     address[] public whitelistedAddresses;
+    address[] public whitelistedDiscountAddresses;
 
     constructor() ERC721("nft", "knft") {
-        _extendedBaseUri = "ipfs://QmNrepKFYKQsXZiFMq71nzHkG9Wb2tQQNLQsjhDZnnXRJW/";
+        _extendedBaseUri = "ipfs://ipfsHash/";
     }
 
     function _baseURI() internal view override returns (string memory) {
-        // "ipfs://QmNrepKFYKQsXZiFMq71nzHkG9Wb2tQQNLQsjhDZnnXRJW/"
+        // "ipfs://ipfsHash/"
         return _extendedBaseUri;
     }
 
@@ -59,12 +54,45 @@ contract FuriousApeSociety is
 
     function mint(uint256 _mintAmount) public payable whenNotPaused {
         if (onlyWhitelisted == true) {
-            require(isWhitelisted(msg.sender), "user is not whitelisted");
-        } 
-
-        if(!isWhitelisted(msg.sender) && msg.sender != owner()){
-            require(msg.value >= cost * _mintAmount, "insufficient funds");
+            require(
+                isWhitelisted(msg.sender) || isWhitelistedDiscount(msg.sender),
+                "user is not whitelisted"
+            );
         }
+
+        if (!isWhitelisted(msg.sender)  && !isWhitelistedDiscount(msg.sender) && msg.sender != owner()) {
+            require(msg.value >= cost * _mintAmount, "insufficient funds");
+             safeMint(msg.sender, _mintAmount);
+        }
+
+        if (isWhitelistedDiscount(msg.sender)) {
+                require(_mintAmount == 2, "you can only mint 2 nfts with discount");
+                require(
+                    msg.value >= ((cost * _mintAmount) * 80) / 100,
+                    "insufficient funds"
+                );
+
+    	        deleteFromWhitelistedDiscountAddresses(msg.sender);
+                safeMint(msg.sender, _mintAmount);
+        }
+
+        if (isWhitelisted(msg.sender)) {
+            require(_mintAmount == 1, "you can only mint 1 nfts");
+            deleteFromWhitelistedAddresses(msg.sender);
+            safeMint(msg.sender, _mintAmount);
+        }
+
+         if (msg.sender == owner()) {
+            safeMint(msg.sender, _mintAmount);
+         }
+
+
+    }
+
+    function safeMint(address to, uint256 _mintAmount) internal {
+        require(maxSupply >= totalSupply(), "No supply");
+
+        require(msg.value >= cost, "Not enough ether sent");
 
         uint256 supply = totalSupply();
         require(_mintAmount > 0, "need to mint at least 1 NFT");
@@ -75,22 +103,11 @@ contract FuriousApeSociety is
         require(supply + _mintAmount <= maxSupply, "max NFT limit exceeded");
 
         for (uint256 i = 1; i <= _mintAmount; i++) {
+            uint256 tokenId = _tokenIdCounter.current();
+            _tokenIdCounter.increment();
             addressMintedBalance[msg.sender]++;
-            safeMint(msg.sender);
+            _safeMint(msg.sender, tokenId);
         }
-    }
-
-    function safeMint(address to) internal  {
-        
-        require(maxSupply >= totalSupply(), "No supply");
-
-        require(msg.value >= cost, "Not enough ether sent");
-
-        uint256 tokenId = _tokenIdCounter.current();
-
-        _tokenIdCounter.increment();
-
-        _safeMint(to, tokenId);
     }
 
     function _beforeTokenTransfer(
@@ -132,9 +149,68 @@ contract FuriousApeSociety is
         return false;
     }
 
+    function isWhitelistedDiscount(address _user) public view returns (bool) {
+        for (uint256 i = 0; i < whitelistedDiscountAddresses.length; i++) {
+            if (whitelistedDiscountAddresses[i] == _user) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     function whitelistUsers(address[] calldata _users) public onlyOwner {
         delete whitelistedAddresses;
         whitelistedAddresses = _users;
+    }
+
+    function whitelistDiscountUsers(address[] calldata _users)
+        public
+        onlyOwner
+    {
+        delete whitelistedDiscountAddresses;
+        whitelistedDiscountAddresses = _users;
+    }
+
+    function getIndexWhitelistedAddresses(address item)
+        internal
+        view
+        returns (uint256)
+    {
+        for (uint256 i = 0; i < whitelistedAddresses.length; i++) {
+            if (item == whitelistedAddresses[i]) return i;
+        }
+    }
+
+    function deleteFromWhitelistedAddresses(address _item) internal {
+        uint256 index = getIndexWhitelistedAddresses(_item);
+        for (uint256 i = index; i < whitelistedAddresses.length - 1; i++) {
+            whitelistedAddresses[i] = whitelistedAddresses[i + 1];
+        }
+        whitelistedAddresses.pop();
+    }
+
+    function getIndexWhitelistedDiscountAddresses(address item)
+        internal
+        view
+        returns (uint256)
+    {
+        for (uint256 i = 0; i < whitelistedDiscountAddresses.length; i++) {
+            if (item == whitelistedDiscountAddresses[i]) return i;
+        }
+    }
+
+    function deleteFromWhitelistedDiscountAddresses(address _item) internal  {
+        uint256 index = getIndexWhitelistedDiscountAddresses(_item);
+        for (
+            uint256 i = index;
+            i < whitelistedDiscountAddresses.length - 1;
+            i++
+        ) {
+            whitelistedDiscountAddresses[i] = whitelistedDiscountAddresses[
+                i + 1
+            ];
+        }
+        whitelistedDiscountAddresses.pop();
     }
 
     function setCost(uint256 _newCost) public onlyOwner {
